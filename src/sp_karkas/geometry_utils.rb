@@ -4,6 +4,12 @@ module SPKarkas
   module GeometryUtils
     EPSILON = 1e-4
 
+    AXES = [
+      Geom::Vector3d.new(1, 0, 0),
+      Geom::Vector3d.new(0, 1, 0),
+      Geom::Vector3d.new(0, 0, 1)
+    ].freeze
+
     LocalAxes = Struct.new(:origin, :xaxis, :yaxis, :zaxis) do
       def to_transformation
         Geom::Transformation.axes(origin, xaxis, yaxis, zaxis)
@@ -106,6 +112,14 @@ module SPKarkas
       value >= (interval.first - EPSILON) && value <= (interval.last + EPSILON)
     end
 
+    def nearly_equal?(a, b)
+      (a - b).abs <= EPSILON
+    end
+
+    def on_boundary?(value, interval)
+      nearly_equal?(value, interval.first) || nearly_equal?(value, interval.last)
+    end
+
     def expand_interval(interval, amount)
       [interval.first - amount, interval.last + amount]
     end
@@ -120,6 +134,65 @@ module SPKarkas
         positions << interval.first + spacing * (index + 1)
       end
       positions
+    end
+
+    def rectangular_prism?(group)
+      faces = group.entities.grep(Sketchup::Face)
+      return false unless faces.length == 6
+
+      inverse = group.transformation.inverse
+
+      face_axes = faces.map do |face|
+        normal = face.normal.clone
+        normal.transform!(group.transformation)
+        normal.normalize!
+        axis = AXES.max_by { |candidate| candidate.dot(normal).abs }
+        return false if axis.nil?
+        return false if 1.0 - normal.dot(axis).abs > 1e-3
+        axis
+      end
+
+      counts = face_axes.tally
+      return false unless counts.values.all? { |count| count == 2 }
+
+      bounds = group.local_bounds
+      return false if (bounds.max.x - bounds.min.x).abs <= EPSILON
+      return false if (bounds.max.y - bounds.min.y).abs <= EPSILON
+      return false if (bounds.max.z - bounds.min.z).abs <= EPSILON
+      corners = [
+        Geom::Point3d.new(bounds.min.x, bounds.min.y, bounds.min.z),
+        Geom::Point3d.new(bounds.max.x, bounds.min.y, bounds.min.z),
+        Geom::Point3d.new(bounds.min.x, bounds.max.y, bounds.min.z),
+        Geom::Point3d.new(bounds.min.x, bounds.min.y, bounds.max.z),
+        Geom::Point3d.new(bounds.max.x, bounds.max.y, bounds.min.z),
+        Geom::Point3d.new(bounds.max.x, bounds.min.y, bounds.max.z),
+        Geom::Point3d.new(bounds.min.x, bounds.max.y, bounds.max.z),
+        Geom::Point3d.new(bounds.max.x, bounds.max.y, bounds.max.z)
+      ]
+
+      corner_signatures = corners.map { |pt| [pt.x, pt.y, pt.z].map { |value| value.round(6) } }
+
+      vertices = group.entities.grep(Sketchup::Edge).flat_map(&:vertices).uniq
+      vertex_signatures = vertices.map do |vertex|
+        point = vertex.position.transform(inverse)
+        [point.x, point.y, point.z].map { |value| value.round(6) }
+      end
+
+      return false unless vertex_signatures.all? { |signature| corner_signatures.include?(signature) }
+      return false unless corner_signatures.uniq.length == 8
+
+      edges = group.entities.grep(Sketchup::Edge)
+      edges.all? do |edge|
+        vector = edge.start.position.vector_to(edge.end.position)
+        vector.transform!(inverse)
+        next false if vector.length <= EPSILON
+        vector.normalize!
+        AXES.any? do |axis|
+          vector.parallel?(axis) || vector.parallel?(axis.clone.reverse!)
+        end
+      end
+    rescue StandardError
+      false
     end
   end
 end

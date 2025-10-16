@@ -6,6 +6,10 @@ module SPKarkas
   module FramingElements
     DEFAULT_STUD_WIDTH = 38.mm
     DEFAULT_STUD_DEPTH = 89.mm
+    DEFAULT_COLUMN_WIDTH = 150.mm
+    DEFAULT_COLUMN_DEPTH = 150.mm
+    DEFAULT_BEAM_WIDTH = 60.mm
+    DEFAULT_BEAM_DEPTH = 180.mm
 
     module_function
 
@@ -43,6 +47,71 @@ module SPKarkas
         DEFAULT_STUD_DEPTH,
         vector.length,
         metadata.merge('type' => 'brace')
+      )
+    end
+
+    def create_column(entities, axes, height, offset_x, offset_y, metadata = {})
+      base = axes.origin.offset(axes.xaxis, offset_x).offset(axes.yaxis, offset_y)
+      build_prismatic_member(
+        entities,
+        base,
+        axes,
+        DEFAULT_COLUMN_WIDTH,
+        DEFAULT_COLUMN_DEPTH,
+        height,
+        metadata.merge('type' => 'column')
+      )
+    end
+
+    def create_beam_along_x(entities, axes, start_offset, end_offset, y_offset, elevation, metadata = {})
+      return nil if start_offset.nil? || end_offset.nil?
+      if end_offset < start_offset
+        start_offset, end_offset = end_offset, start_offset
+      end
+      length = end_offset - start_offset
+      return nil if length <= GeometryUtils::EPSILON
+
+      origin = axes.origin
+      origin = origin.offset(axes.xaxis, start_offset)
+      origin = origin.offset(axes.yaxis, y_offset)
+      origin = origin.offset(axes.zaxis, elevation)
+
+      orientation = GeometryUtils::LocalAxes.new(origin, axes.yaxis, axes.zaxis, axes.xaxis)
+
+      build_prismatic_member(
+        entities,
+        origin,
+        orientation,
+        DEFAULT_BEAM_WIDTH,
+        DEFAULT_BEAM_DEPTH,
+        length,
+        metadata.merge('type' => 'beam')
+      )
+    end
+
+    def create_beam_along_y(entities, axes, start_offset, end_offset, x_offset, elevation, metadata = {})
+      return nil if start_offset.nil? || end_offset.nil?
+      if end_offset < start_offset
+        start_offset, end_offset = end_offset, start_offset
+      end
+      length = end_offset - start_offset
+      return nil if length <= GeometryUtils::EPSILON
+
+      origin = axes.origin
+      origin = origin.offset(axes.xaxis, x_offset)
+      origin = origin.offset(axes.yaxis, start_offset)
+      origin = origin.offset(axes.zaxis, elevation)
+
+      orientation = GeometryUtils::LocalAxes.new(origin, axes.xaxis, axes.zaxis, axes.yaxis)
+
+      build_prismatic_member(
+        entities,
+        origin,
+        orientation,
+        DEFAULT_BEAM_WIDTH,
+        DEFAULT_BEAM_DEPTH,
+        length,
+        metadata.merge('type' => 'beam')
       )
     end
 
