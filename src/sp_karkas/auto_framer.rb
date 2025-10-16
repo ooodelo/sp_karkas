@@ -136,8 +136,11 @@ module SPKarkas
       thickness_axis = axes.yaxis.clone.normalize
       faces = wall_group.entities.grep(Sketchup::Face)
 
+      transformation = wall_group.transformation
       loop_intervals = faces.each_with_object([]) do |face, collection|
-        normal = face.normal.clone.normalize
+        normal = face.normal.clone
+        normal.transform!(transformation)
+        normal.normalize!
         angle = normal.angle_between(thickness_axis)
         next unless angle < 5.degrees || (Math::PI - angle) < 5.degrees
 
