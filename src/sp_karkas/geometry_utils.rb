@@ -27,21 +27,34 @@ module SPKarkas
     def wall_axes(group)
       local_bounds = group.local_bounds
       lengths = axis_lengths(local_bounds)
-      axes = [Geom::Vector3d.new(1, 0, 0), Geom::Vector3d.new(0, 1, 0), Geom::Vector3d.new(0, 0, 1)]
-      paired = axes.zip(lengths)
+      local_axes = [
+        { axis: Geom::Vector3d.new(1, 0, 0), length: lengths[0] },
+        { axis: Geom::Vector3d.new(0, 1, 0), length: lengths[1] },
+        { axis: Geom::Vector3d.new(0, 0, 1), length: lengths[2] }
+      ]
 
-      height_axis = paired.max_by { |(_, length)| length }
-      thickness_axis = paired.min_by { |(_, length)| length }
-      length_axis = (paired - [height_axis, thickness_axis]).first
+      tr = group.transformation
+      up_vector = Geom::Vector3d.new(0, 0, 1)
+      axis_data = local_axes.map do |entry|
+        transformed = transform_axis(tr, entry[:axis])
+        entry.merge(
+          transformed: transformed,
+          up_alignment: transformed.dot(up_vector).abs
+        )
+      end
+
+      vertical_axis = axis_data.max_by { |entry| entry[:up_alignment] }
+      remaining_axes = axis_data - [vertical_axis]
+      length_axis = remaining_axes.max_by { |entry| entry[:length] }
+      thickness_axis = (remaining_axes - [length_axis]).first
 
       origin_point = Geom::Point3d.new(local_bounds.min.x, local_bounds.min.y, local_bounds.min.z)
-      tr = group.transformation
       origin = origin_point.transform(tr)
       LocalAxes.new(
         origin,
-        transform_axis(tr, length_axis[0]),
-        transform_axis(tr, thickness_axis[0]),
-        transform_axis(tr, height_axis[0])
+        length_axis[:transformed],
+        thickness_axis[:transformed],
+        vertical_axis[:transformed]
       )
     end
 
