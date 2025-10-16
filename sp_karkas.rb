@@ -9,8 +9,8 @@ module SPKarkas
 
     unless defined?(@extension)
       @extension = SketchupExtension.new(EXTENSION_NAME, LOADER_PATH)
-      @extension.description = 'Automatically frames selected wall groups with studs, headers, and metadata.'
-      @extension.version = '0.1.0'
+      @extension.description = 'Создает пространственный каркас здания на месте выбранного параллелепипеда по нормативным шагам.'
+      @extension.version = '0.2.0'
       @extension.creator = 'SP Karkas'
       Sketchup.register_extension(@extension, true)
     end

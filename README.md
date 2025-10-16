@@ -1,6 +1,6 @@
 # SP Karkas Auto Framer
 
-SP Karkas Auto Framer is a SketchUp extension that detects simple wall groups and automatically adds framing elements such as studs, headers, and braces. The tool also tags each generated element with structured attributes that can be used by downstream workflows.
+SP Karkas Auto Framer is a SketchUp extension that формирует пространственный каркас здания на основе выделенного прямоугольного параллелепипеда. Инструмент заменяет исходный объем на систему стоек, ригелей и раскосов, а также присваивает структурированные атрибуты для дальнейших расчетов.
 
 ## Installation
 
@@ -13,8 +13,8 @@ SP Karkas Auto Framer is a SketchUp extension that detects simple wall groups an
 
 ## Usage
 
-1. Create or import wall groups in your SketchUp model. Groups should be oriented upright and have a consistent thickness.
-2. Select the wall groups you want to frame (or leave nothing selected to frame all detected walls).
-3. Open the **Extensions → SP Karkas Auto Framer** menu command to generate studs, headers, braces, and metadata tags.
+1. Постройте или импортируйте внешний контур здания в виде группы прямоугольного параллелепипеда.
+2. Выделите только эту группу.
+3. Запустите команду **Extensions → SP Karkas Auto Framer**.
 
-The extension applies default stud spacing and rough opening expansion values. Generated components remain standard groups so they can be further edited or replaced with custom components as needed.
+Плагин проверяет корректность оболочки, очищает её содержимое, формирует нормативный шаг стоек, ригелей и раскосов и назначает атрибуты на собранный каркас.

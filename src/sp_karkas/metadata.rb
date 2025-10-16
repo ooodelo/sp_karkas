@@ -24,5 +24,18 @@ module SPKarkas
         'sequence' => sequence
       }
     end
+
+    def frame_tag(length:, width:, height:, columns:, beams:, braces:)
+      {
+        'category' => 'structural_frame',
+        'version' => '0.2.0',
+        'length_mm' => length.to_mm,
+        'width_mm' => width.to_mm,
+        'height_mm' => height.to_mm,
+        'column_count' => columns,
+        'beam_count' => beams,
+        'brace_count' => braces
+      }
+    end
   end
 end
