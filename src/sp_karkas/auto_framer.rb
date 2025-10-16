@@ -40,10 +40,10 @@ module SPKarkas
 
     def wall_like?(group)
       axes = GeometryUtils.wall_axes(group)
-      bounds = group.local_bounds
-      thickness = bounds.max.y - bounds.min.y
-      height = bounds.max.z - bounds.min.z
-      length = bounds.max.x - bounds.min.x
+      intervals = GeometryUtils.axis_intervals(group, axes)
+      thickness = intervals[:y].last - intervals[:y].first
+      height = intervals[:z].last - intervals[:z].first
+      length = intervals[:x].last - intervals[:x].first
       height > length && height > thickness * 2
     rescue StandardError
       false
@@ -53,9 +53,9 @@ module SPKarkas
       Metadata.apply(wall_group, Metadata.wall_tag.merge('sequence' => sequence))
 
       axes = GeometryUtils.wall_axes(wall_group)
-      local = wall_group.local_bounds
-      length_interval = [0.0, local.max.x - local.min.x]
-      height_interval = [0.0, local.max.z - local.min.z]
+      intervals = GeometryUtils.axis_intervals(wall_group, axes)
+      length_interval = intervals[:x]
+      height_interval = intervals[:z]
 
       studs = layout_studs(wall_group, axes, length_interval, height_interval, sequence)
       layout_headers(wall_group, axes, length_interval, height_interval, sequence)

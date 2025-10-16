@@ -58,6 +58,38 @@ module SPKarkas
       )
     end
 
+    def axis_intervals(group, axes)
+      bounds = group.local_bounds
+      transformation = group.transformation
+      inverse_axes = axes.inverse
+
+      corners = [
+        Geom::Point3d.new(bounds.min.x, bounds.min.y, bounds.min.z),
+        Geom::Point3d.new(bounds.max.x, bounds.min.y, bounds.min.z),
+        Geom::Point3d.new(bounds.min.x, bounds.max.y, bounds.min.z),
+        Geom::Point3d.new(bounds.min.x, bounds.min.y, bounds.max.z),
+        Geom::Point3d.new(bounds.max.x, bounds.max.y, bounds.min.z),
+        Geom::Point3d.new(bounds.max.x, bounds.min.y, bounds.max.z),
+        Geom::Point3d.new(bounds.min.x, bounds.max.y, bounds.max.z),
+        Geom::Point3d.new(bounds.max.x, bounds.max.y, bounds.max.z)
+      ]
+
+      projected = corners.map do |corner|
+        world_point = corner.transform(transformation)
+        world_point.transform(inverse_axes)
+      end
+
+      xs = projected.map(&:x)
+      ys = projected.map(&:y)
+      zs = projected.map(&:z)
+
+      {
+        x: [xs.min, xs.max],
+        y: [ys.min, ys.max],
+        z: [zs.min, zs.max]
+      }
+    end
+
     def transform_axis(transformation, axis)
       axis = axis.clone
       axis.transform!(transformation)
