@@ -68,7 +68,7 @@ module SPKarkas
 
     def place_jack_studs(wall)
       wall.openings.flat_map do |opening|
-        jack_height = opening.vertical_range.first
+        jack_height = opening.vertical_range.last
         next [] if jack_height <= GeometryUtils::EPSILON
 
         left = opening.horizontal_range.first + JACK_STUD_OFFSET
