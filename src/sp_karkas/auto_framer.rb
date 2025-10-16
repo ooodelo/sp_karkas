@@ -12,21 +12,17 @@ module SPKarkas
 
     def activate
       model = Sketchup.active_model
-      selection = model.selection.grep(Sketchup::Group)
+      selection = SelectionScanner.new(model.selection).scan
 
-      if selection.length != 1
-        UI.messagebox('Выберите одну группу-параллелепипед, прежде чем запускать SP Karkas Auto Framer.')
-        return
-      end
+      return if selection.nil?
 
-      shell_group = selection.first
-      unless GeometryUtils.rectangular_prism?(shell_group)
-        UI.messagebox('Выбранная группа должна представлять прямоугольный параллелепипед без дополнительных элементов.')
+      unless GeometryUtils.rectangular_prism?(selection.entities, selection.transformation)
+        UI.messagebox('Выбранный объект должен представлять прямоугольный параллелепипед без дополнительных элементов.')
         return
       end
 
       model.start_operation('SP Karkas Auto Framer', true)
-      frame_group = build_frame(shell_group)
+      frame_group = build_frame(selection)
       model.selection.clear
       model.selection.add(frame_group)
       model.commit_operation
@@ -37,33 +33,27 @@ module SPKarkas
       raise error
     end
 
-    def build_frame(shell_group)
-      bounds = shell_group.local_bounds
+    def build_frame(selection)
+      bounds = selection.bounds
       length = bounds.max.x - bounds.min.x
       width = bounds.max.y - bounds.min.y
       height = bounds.max.z - bounds.min.z
 
-      axes_origin = Geom::Point3d.new(bounds.min.x, bounds.min.y, bounds.min.z)
-      axes = GeometryUtils::LocalAxes.new(
-        axes_origin,
-        Geom::Vector3d.new(1, 0, 0),
-        Geom::Vector3d.new(0, 1, 0),
-        Geom::Vector3d.new(0, 0, 1)
-      )
+      axes = selection.axes
 
       length_interval = [0, length]
       width_interval = [0, width]
       height_interval = [0, height]
 
-      shell_group.entities.clear!
-      shell_group.name = 'SP Karkas Frame'
+      frame_group = selection.parent_entities.add_group
+      frame_group.name = 'SP Karkas Frame'
 
-      columns = layout_columns(shell_group.entities, axes, length_interval, width_interval, height_interval)
-      beams = layout_beams(shell_group.entities, axes, length_interval, width_interval, height_interval)
-      braces = layout_bracing(shell_group.entities, axes, length_interval, width_interval, height_interval)
+      columns = layout_columns(frame_group.entities, axes, length_interval, width_interval, height_interval)
+      beams = layout_beams(frame_group.entities, axes, length_interval, width_interval, height_interval)
+      braces = layout_bracing(frame_group.entities, axes, length_interval, width_interval, height_interval)
 
       Metadata.apply(
-        shell_group,
+        frame_group,
         Metadata.frame_tag(
           length: length,
           width: width,
@@ -74,7 +64,7 @@ module SPKarkas
         )
       )
 
-      shell_group
+      frame_group
     end
 
     def layout_columns(entities, axes, length_interval, width_interval, height_interval)
@@ -200,6 +190,81 @@ module SPKarkas
       end
 
       members.compact
+    end
+
+    class SelectionScanner
+      NormalizedSelection = Struct.new(:entities, :transformation, :parent_entities, :bounds, :world_vertices) do
+        def axes
+          @axes ||= begin
+            origin_local = Geom::Point3d.new(bounds.min.x, bounds.min.y, bounds.min.z)
+            origin = origin_local.transform(transformation)
+            xaxis = Geom::Vector3d.new(1, 0, 0).transform(transformation)
+            yaxis = Geom::Vector3d.new(0, 1, 0).transform(transformation)
+            zaxis = Geom::Vector3d.new(0, 0, 1).transform(transformation)
+            xaxis.normalize!
+            yaxis.normalize!
+            zaxis.normalize!
+            GeometryUtils::LocalAxes.new(origin, xaxis, yaxis, zaxis)
+          end
+        end
+
+        def world_bounds
+          @world_bounds ||= begin
+            bounding_box = Geom::BoundingBox.new
+            world_vertices.each { |vertex| bounding_box.add(vertex) }
+            bounding_box
+          end
+        end
+      end
+
+      def initialize(selection)
+        @selection = selection
+      end
+
+      def scan
+        candidates = @selection.grep(Sketchup::Group) + @selection.grep(Sketchup::ComponentInstance)
+
+        if candidates.length != 1
+          UI.messagebox('Выберите один объект (группу или компонент), прежде чем запускать SP Karkas Auto Framer.')
+          return nil
+        end
+
+        instance = candidates.first
+        entities = extract_entities(instance)
+        transformation = instance.transformation
+        parent_entities = resolve_parent_entities(instance)
+        bounds = GeometryUtils.compute_bounds(entities)
+        world_vertices = collect_world_vertices(entities, transformation)
+
+        NormalizedSelection.new(entities, transformation, parent_entities, bounds, world_vertices)
+      end
+
+      private
+
+      def extract_entities(instance)
+        case instance
+        when Sketchup::Group
+          instance.entities
+        when Sketchup::ComponentInstance
+          instance.definition.entities
+        else
+          raise ArgumentError, "Unsupported selection type: #{instance.class}"
+        end
+      end
+
+      def resolve_parent_entities(instance)
+        parent = instance.parent
+        return parent if parent.is_a?(Sketchup::Entities)
+        return parent.entities if parent.respond_to?(:entities)
+
+        raise ArgumentError, 'Unable to resolve parent entities for selection.'
+      end
+
+      def collect_world_vertices(entities, transformation)
+        entities.grep(Sketchup::Edge).flat_map(&:vertices).uniq.map do |vertex|
+          vertex.position.transform(transformation)
+        end
+      end
     end
 
     unless file_loaded?(__FILE__)
