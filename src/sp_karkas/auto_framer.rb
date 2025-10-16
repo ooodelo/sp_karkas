@@ -133,8 +133,31 @@ module SPKarkas
     end
 
     def detect_openings(wall_group, axes)
+      thickness_axis = axes.yaxis.clone.normalize
+      faces = wall_group.entities.grep(Sketchup::Face)
+
+      loop_intervals = faces.each_with_object([]) do |face, collection|
+        normal = face.normal.clone.normalize
+        angle = normal.angle_between(thickness_axis)
+        next unless angle < 5.degrees || (Math::PI - angle) < 5.degrees
+
+        face.loops.reject(&:outer?).each do |loop|
+          projected = loop.vertices.map { |vertex| GeometryUtils.project_point(vertex.position, axes) }
+          x_values = projected.map(&:x)
+          next if x_values.empty?
+
+          min_x = x_values.min
+          max_x = x_values.max
+          next if (max_x - min_x).abs < GeometryUtils::EPSILON
+
+          collection << [min_x, max_x]
+        end
+      end
+
+      return merge_intervals(loop_intervals) unless loop_intervals.empty?
+
       edges = wall_group.entities.grep(Sketchup::Edge)
-      intervals = edges.each_with_object([]) do |edge, collection|
+      edge_intervals = edges.each_with_object([]) do |edge, collection|
         points = edge.vertices.map { |vertex| GeometryUtils.project_point(vertex.position, axes) }
         next if points.length < 2
 
@@ -144,7 +167,7 @@ module SPKarkas
         x_values = points.map(&:x)
         collection << [x_values.min, x_values.max]
       end
-      merge_intervals(intervals)
+      merge_intervals(edge_intervals)
     end
 
     def merge_intervals(intervals)
