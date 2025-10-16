@@ -16,10 +16,13 @@ module SPKarkas
 
       return if selection.nil?
 
-      unless GeometryUtils.rectangular_prism?(selection.entities, selection.transformation)
+      prism_planes = GeometryUtils.rectangular_prism?(selection.entities, selection.transformation)
+      unless prism_planes
         UI.messagebox('Выбранный объект должен представлять прямоугольный параллелепипед без дополнительных элементов.')
         return
       end
+
+      selection.prism_planes = prism_planes
 
       model.start_operation('SP Karkas Auto Framer', true)
       frame_group = build_frame(selection)
@@ -193,7 +196,7 @@ module SPKarkas
     end
 
     class SelectionScanner
-      NormalizedSelection = Struct.new(:entities, :transformation, :parent_entities, :bounds, :world_vertices) do
+      NormalizedSelection = Struct.new(:entities, :transformation, :parent_entities, :bounds, :world_vertices, :prism_planes) do
         def axes
           @axes ||= begin
             origin_local = Geom::Point3d.new(bounds.min.x, bounds.min.y, bounds.min.z)
@@ -236,7 +239,7 @@ module SPKarkas
         bounds = GeometryUtils.compute_bounds(entities)
         world_vertices = collect_world_vertices(entities, transformation)
 
-        NormalizedSelection.new(entities, transformation, parent_entities, bounds, world_vertices)
+        NormalizedSelection.new(entities, transformation, parent_entities, bounds, world_vertices, nil)
       end
 
       private
