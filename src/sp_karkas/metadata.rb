@@ -25,15 +25,15 @@ module SPKarkas
       }
     end
 
-    def frame_tag(length:, width:, height:, columns:, beams:, braces:)
+    def frame_tag(length:, width:, height:, studs:, headers:, braces:)
       {
         'category' => 'structural_frame',
         'version' => '0.2.0',
         'length_mm' => length.to_mm,
         'width_mm' => width.to_mm,
         'height_mm' => height.to_mm,
-        'column_count' => columns,
-        'beam_count' => beams,
+        'stud_count' => studs,
+        'header_count' => headers,
         'brace_count' => braces
       }
     end
