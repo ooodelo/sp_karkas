@@ -44,8 +44,13 @@ module SPKarkas
       openings = wall.openings.reject(&:degenerate?)
 
       openings.each do |opening|
+        opening_width = opening.horizontal_range.last - opening.horizontal_range.first
+
         positions << opening.horizontal_range.first
         positions << opening.horizontal_range.last
+
+        next unless opening_width > 2 * JACK_STUD_OFFSET + GeometryUtils::EPSILON
+
         positions << [opening.horizontal_range.first - JACK_STUD_OFFSET, 0.0].max
         positions << [opening.horizontal_range.last + JACK_STUD_OFFSET, length].min
       end
@@ -71,11 +76,14 @@ module SPKarkas
         jack_height = opening.vertical_range.first
         next [] if jack_height <= GeometryUtils::EPSILON
 
-        opening_width = opening.horizontal_range.last - opening.horizontal_range.first
-        next [] if opening_width <= 2 * JACK_STUD_OFFSET + GeometryUtils::EPSILON
-
         left = opening.horizontal_range.first + JACK_STUD_OFFSET
         right = opening.horizontal_range.last - JACK_STUD_OFFSET
+
+        next [] if right - left <= GeometryUtils::EPSILON
+
+        length = wall.length
+        left = [[left, 0.0].max, length].min
+        right = [[right, 0.0].max, length].min
 
         next [] if right - left <= GeometryUtils::EPSILON
 
