@@ -11,8 +11,13 @@ module SPKarkas
       :vertical_range,
       :raw_horizontal_range,
       :raw_vertical_range,
+      :degenerate,
       keyword_init: true
-    )
+    ) do
+      def degenerate?
+        !!degenerate
+      end
+    end
 
     module_function
 
@@ -39,12 +44,16 @@ module SPKarkas
         local_horizontal = to_local(horizontal_range, wall.horizontal_origin)
         local_vertical = to_local(vertical_range, wall.base_elevation)
 
+        horizontal_info = apply_clearance(local_horizontal, wall.horizontal_range)
+        vertical_info = apply_clearance(local_vertical, wall.height_range)
+
         Opening.new(
           type: classify_opening(local_vertical),
-          horizontal_range: apply_clearance(local_horizontal, wall.horizontal_range),
-          vertical_range: apply_clearance(local_vertical, wall.height_range),
+          horizontal_range: horizontal_info[:range],
+          vertical_range: vertical_info[:range],
           raw_horizontal_range: local_horizontal,
-          raw_vertical_range: local_vertical
+          raw_vertical_range: local_vertical,
+          degenerate: horizontal_info[:degenerate] || vertical_info[:degenerate]
         )
       end
     end
@@ -58,7 +67,10 @@ module SPKarkas
       lower = [expanded.first, wall_range.first].max
       upper = [expanded.last, wall_range.last].min
       upper = [upper, lower].max
-      [lower, upper]
+      degenerate = (upper - lower) <= GeometryUtils::EPSILON
+      upper = lower if degenerate
+
+      { range: [lower, upper], degenerate: degenerate }
     end
 
     def classify_opening(vertical_range)

@@ -64,10 +64,38 @@ module SPKarkas
 
       xaxis = axis_vectors[primary_axis].clone
       xaxis.normalize!
-      yaxis = plane.normal.clone
-      yaxis.normalize!
+
       zaxis = axis_vectors[secondary_axis].clone
       zaxis.normalize!
+
+      yaxis = xaxis.cross(zaxis)
+      if yaxis.length <= GeometryUtils::EPSILON
+        zaxis = plane.normal.cross(xaxis)
+        if zaxis.length <= GeometryUtils::EPSILON
+          yaxis = plane.normal.clone
+          yaxis.normalize!
+          zaxis = xaxis.cross(yaxis)
+        else
+          zaxis.normalize!
+          yaxis = xaxis.cross(zaxis)
+        end
+      end
+
+      yaxis.normalize!
+      zaxis = xaxis.cross(yaxis)
+      if zaxis.length <= GeometryUtils::EPSILON
+        zaxis = yaxis.cross(xaxis)
+      end
+      zaxis.normalize!
+
+      if yaxis.dot(plane.normal) < 0
+        yaxis.reverse!
+        zaxis = xaxis.cross(yaxis)
+        if zaxis.length <= GeometryUtils::EPSILON
+          zaxis = yaxis.cross(xaxis)
+        end
+        zaxis.normalize!
+      end
 
       length = primary_bounds.last - primary_bounds.first
       height = secondary_bounds.last - secondary_bounds.first
