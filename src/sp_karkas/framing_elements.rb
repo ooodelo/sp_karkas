@@ -38,7 +38,47 @@ module SPKarkas
       end_point = axes.origin.offset(axes.xaxis, end_offset).offset(axes.zaxis, height)
       vector = start_point.vector_to(end_point)
       return nil if vector.length <= GeometryUtils::EPSILON
-      orientation = GeometryUtils::LocalAxes.new(start_point, vector.normalize, axes.yaxis, axes.zaxis)
+
+      xaxis = vector.clone
+      xaxis.normalize!
+
+      up_candidates = [axes.zaxis, axes.yaxis, axes.xaxis]
+      yaxis = nil
+
+      up_candidates.each do |candidate|
+        next unless candidate
+
+        up = candidate.clone
+        next if up.length <= GeometryUtils::EPSILON
+
+        up.normalize!
+        cross = up.cross(xaxis)
+        next if cross.length <= GeometryUtils::EPSILON
+
+        yaxis = cross
+        break
+      end
+
+      if yaxis.nil? || yaxis.length <= GeometryUtils::EPSILON
+        [Geom::Vector3d.new(0, 0, 1), Geom::Vector3d.new(0, 1, 0), Geom::Vector3d.new(1, 0, 0)].each do |global|
+          cross = global.cross(xaxis)
+          next if cross.length <= GeometryUtils::EPSILON
+
+          yaxis = cross
+          break
+        end
+      end
+
+      return nil if yaxis.nil? || yaxis.length <= GeometryUtils::EPSILON
+
+      yaxis.normalize!
+      zaxis = xaxis.cross(yaxis)
+      if zaxis.length <= GeometryUtils::EPSILON
+        zaxis = yaxis.cross(xaxis)
+      end
+      zaxis.normalize!
+
+      orientation = GeometryUtils::LocalAxes.new(start_point, xaxis, yaxis, zaxis)
       build_prismatic_member(
         entities,
         start_point,

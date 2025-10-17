@@ -41,7 +41,7 @@ module SPKarkas
       length = wall.length
       height = wall.height
       positions = base_positions(length)
-      openings = wall.openings
+      openings = wall.openings.reject(&:degenerate?)
 
       openings.each do |opening|
         positions << opening.horizontal_range.first
@@ -67,16 +67,19 @@ module SPKarkas
     end
 
     def place_jack_studs(wall)
-      wall.openings.flat_map do |opening|
+      wall.openings.reject(&:degenerate?).flat_map do |opening|
         jack_height = opening.vertical_range.first
         next [] if jack_height <= GeometryUtils::EPSILON
+
+        opening_width = opening.horizontal_range.last - opening.horizontal_range.first
+        next [] if opening_width <= 2 * JACK_STUD_OFFSET + GeometryUtils::EPSILON
 
         left = opening.horizontal_range.first + JACK_STUD_OFFSET
         right = opening.horizontal_range.last - JACK_STUD_OFFSET
 
         next [] if right - left <= GeometryUtils::EPSILON
 
-        [left, right].uniq.map do |offset|
+        [left, right].map do |offset|
           FramingElements.create_stud(
             @entities,
             wall.axes,
@@ -89,7 +92,7 @@ module SPKarkas
     end
 
     def place_headers(wall)
-      wall.openings.map do |opening|
+      wall.openings.reject(&:degenerate?).map do |opening|
         width = opening.horizontal_range.last - opening.horizontal_range.first
         next if width <= GeometryUtils::EPSILON
 
@@ -105,7 +108,7 @@ module SPKarkas
     end
 
     def place_braces(wall)
-      return [] unless wall.openings.empty?
+      return [] unless wall.openings.reject(&:degenerate?).empty?
       return [] if wall.length <= GeometryUtils::EPSILON || wall.height <= GeometryUtils::EPSILON
 
       [
@@ -142,10 +145,17 @@ module SPKarkas
     end
 
     def normalize_positions(positions, length)
-      sorted = positions.map { |pos| [[pos, 0.0].max, length].min }
-      sorted.sort.each_with_object([]) do |value, unique|
-        unique << value unless unique.any? { |existing| (existing - value).abs <= GeometryUtils::EPSILON }
+      clamped = positions.map { |pos| [[pos, 0.0].max, length].min }
+      sorted = clamped.sort
+      unique = []
+
+      sorted.each do |value|
+        if unique.empty? || (value - unique.last).abs > GeometryUtils::EPSILON
+          unique << value
+        end
       end
+
+      unique
     end
 
     def inside_opening?(offset, openings)

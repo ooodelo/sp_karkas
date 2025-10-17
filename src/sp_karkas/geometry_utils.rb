@@ -3,6 +3,7 @@ require 'sketchup.rb'
 module SPKarkas
   module GeometryUtils
     EPSILON = 1e-4
+    PLANE_OFFSET_ABS_EPSILON = 1e-6
 
     AXES = [
       Geom::Vector3d.new(1, 0, 0),
@@ -29,6 +30,7 @@ module SPKarkas
       :bounds,
       :point,
       :plane,
+      :tolerance,
       keyword_init: true
     )
 
@@ -162,7 +164,10 @@ module SPKarkas
       faces = entities.grep(Sketchup::Face)
       return false if faces.empty?
 
-      plane_groups = group_faces_by_plane(faces, transformation)
+      bounds = compute_bounds(entities)
+      tolerance = plane_offset_tolerance(bounds)
+
+      plane_groups = group_faces_by_plane(faces, transformation, tolerance)
       return false if plane_groups.nil?
 
       axis_planes = {}
@@ -172,7 +177,7 @@ module SPKarkas
         return false unless groups.length == 2
 
         groups.each do |group|
-          return false unless validate_plane_group(axis, group)
+          return false unless validate_plane_group(axis, group, tolerance)
         end
 
         sorted = groups.sort_by(&:offset)
@@ -198,7 +203,7 @@ module SPKarkas
       bounds
     end
 
-    def group_faces_by_plane(faces, transformation)
+    def group_faces_by_plane(faces, transformation, tolerance)
       grouped = Hash.new { |hash, key| hash[key] = [] }
 
       faces.each do |face|
@@ -208,7 +213,7 @@ module SPKarkas
         axis = plane_info[:axis]
         axis_groups = grouped[axis]
 
-        group = find_existing_plane_group(axis_groups, plane_info[:offset])
+        group = find_existing_plane_group(axis_groups, plane_info[:offset], tolerance)
         unless group
           group = PlaneDescription.new(
             axis: axis,
@@ -218,7 +223,8 @@ module SPKarkas
             inner_loops: [],
             bounds: nil,
             point: nil,
-            plane: nil
+            plane: nil,
+            tolerance: tolerance
           )
           axis_groups << group
         else
@@ -275,19 +281,19 @@ module SPKarkas
       }
     end
 
-    def find_existing_plane_group(groups, offset)
-      groups.find { |group| nearly_equal?(group.offset, offset) }
+    def find_existing_plane_group(groups, offset, tolerance)
+      groups.find { |group| plane_offset_equal?(group.offset, offset, tolerance) }
     end
 
-    def validate_plane_group(axis, group)
+    def validate_plane_group(axis, group, tolerance)
+      tolerance ||= group.tolerance || PLANE_OFFSET_ABS_EPSILON
       outer_points = group.outer_loops.flat_map { |points| points }
       return false if outer_points.empty?
 
       axis_values = outer_points.map { |point| point.public_send(axis) }
-      average_offset = axis_values.sum / axis_values.length.to_f
-      group.offset = average_offset
+      reference_offset = group.offset
 
-      return false unless axis_values.all? { |value| nearly_equal?(value, average_offset) }
+      return false unless axis_values.all? { |value| plane_offset_equal?(value, reference_offset, tolerance) }
 
       primary_axis, secondary_axis = PLANE_AXES[axis]
 
@@ -381,6 +387,28 @@ module SPKarkas
 
       combined.normalize!
       combined
+    end
+
+    def plane_offset_equal?(first, second, tolerance)
+      (first - second).abs <= tolerance
+    end
+
+    def plane_offset_tolerance(bounds)
+      diagonal = bounding_box_diagonal(bounds)
+      [PLANE_OFFSET_ABS_EPSILON, diagonal * 1e-6].max
+    end
+
+    def bounding_box_diagonal(bounds)
+      return 0.0 if bounds.nil?
+
+      min = bounds.min
+      max = bounds.max
+
+      dx = max.x - min.x
+      dy = max.y - min.y
+      dz = max.z - min.z
+
+      Math.sqrt(dx * dx + dy * dy + dz * dz)
     end
 
     def plane_from_point_and_normal(point, normal)
