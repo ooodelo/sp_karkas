@@ -65,36 +65,38 @@ module SPKarkas
       xaxis = axis_vectors[primary_axis].clone
       xaxis.normalize!
 
-      zaxis = axis_vectors[secondary_axis].clone
-      zaxis.normalize!
+      temp_up = axis_vectors[secondary_axis]&.clone
+      if temp_up && temp_up.length > GeometryUtils::EPSILON
+        temp_up.normalize!
+      else
+        temp_up = nil
+      end
 
-      yaxis = xaxis.cross(zaxis)
+      yaxis = temp_up ? temp_up.cross(xaxis) : Geom::Vector3d.new(0, 0, 0)
       if yaxis.length <= GeometryUtils::EPSILON
-        zaxis = plane.normal.cross(xaxis)
-        if zaxis.length <= GeometryUtils::EPSILON
-          yaxis = plane.normal.clone
-          yaxis.normalize!
-          zaxis = xaxis.cross(yaxis)
-        else
-          zaxis.normalize!
-          yaxis = xaxis.cross(zaxis)
-        end
+        yaxis = plane.normal.clone
       end
 
       yaxis.normalize!
+
       zaxis = xaxis.cross(yaxis)
       if zaxis.length <= GeometryUtils::EPSILON
-        zaxis = yaxis.cross(xaxis)
+        raise ArgumentError, 'Невозможно построить ортонормальный базис стены.'
       end
       zaxis.normalize!
 
-      if yaxis.dot(plane.normal) < 0
+      if yaxis.dot(plane.normal) < -GeometryUtils::EPSILON
         yaxis.reverse!
         zaxis = xaxis.cross(yaxis)
         if zaxis.length <= GeometryUtils::EPSILON
-          zaxis = yaxis.cross(xaxis)
+          raise ArgumentError, 'Невозможно построить ортонормальный базис стены.'
         end
         zaxis.normalize!
+      end
+
+      orientation_check = xaxis.cross(yaxis)
+      if orientation_check.dot(zaxis) < 0
+        zaxis.reverse!
       end
 
       length = primary_bounds.last - primary_bounds.first
