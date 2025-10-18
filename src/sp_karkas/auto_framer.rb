@@ -61,7 +61,9 @@ module SPKarkas
           height: height,
           studs: layout_results[:studs].length,
           headers: layout_results[:headers].length,
-          braces: layout_results[:braces].length
+          top_plates: layout_results[:top_plates].length,
+          bottom_plates: layout_results[:bottom_plates].length,
+          corner_posts: layout_results[:corner_posts].length
         )
       )
 
