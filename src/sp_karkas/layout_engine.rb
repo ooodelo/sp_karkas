@@ -8,28 +8,33 @@ module SPKarkas
     EDGE_OFFSET = 45.mm
     JACK_STUD_OFFSET = FramingElements::DEFAULT_STUD_WIDTH
 
-    def initialize(entities, walls, include_braces: true)
+    def initialize(entities, walls)
       @entities = entities
       @walls = walls
-      @include_braces = include_braces
       @sequences = Hash.new(0)
     end
 
     def build
       studs = []
       headers = []
-      braces = []
+      top_plates = []
+      bottom_plates = []
 
       @walls.each do |wall|
         studs.concat(place_wall_studs(wall))
         headers.concat(place_headers(wall))
-        braces.concat(place_braces(wall)) if @include_braces
+        bottom_plates << place_bottom_plate(wall)
+        top_plates << place_top_plate(wall)
       end
+
+      corner_posts = place_corner_posts
 
       {
         studs: studs.compact,
         headers: headers.compact,
-        braces: braces.compact
+        top_plates: top_plates.compact,
+        bottom_plates: bottom_plates.compact,
+        corner_posts: corner_posts.compact
       }
     end
 
@@ -115,30 +120,6 @@ module SPKarkas
       end.compact
     end
 
-    def place_braces(wall)
-      return [] unless wall.openings.reject(&:degenerate?).empty?
-      return [] if wall.length <= GeometryUtils::EPSILON || wall.height <= GeometryUtils::EPSILON
-
-      [
-        FramingElements.create_brace(
-          @entities,
-          wall.axes,
-          wall.horizontal_range.first,
-          wall.horizontal_range.last,
-          wall.height,
-          Metadata.framing_member_tag('brace', next_sequence(:brace))
-        ),
-        FramingElements.create_brace(
-          @entities,
-          wall.axes,
-          wall.horizontal_range.last,
-          wall.horizontal_range.first,
-          wall.height,
-          Metadata.framing_member_tag('brace', next_sequence(:brace))
-        )
-      ].compact
-    end
-
     def base_positions(length)
       positions = [0.0, length]
       return positions if length <= 2 * EDGE_OFFSET + GeometryUtils::EPSILON
@@ -175,6 +156,97 @@ module SPKarkas
 
     def next_sequence(category)
       @sequences[category] += 1
+    end
+
+    def place_bottom_plate(wall)
+      return nil if wall.length <= GeometryUtils::EPSILON
+
+      FramingElements.create_plate(
+        @entities,
+        wall.axes,
+        wall.horizontal_range.first,
+        wall.length,
+        0.0,
+        Metadata.framing_member_tag('bottom_plate', next_sequence(:plate))
+      )
+    end
+
+    def place_top_plate(wall)
+      return nil if wall.length <= GeometryUtils::EPSILON
+
+      FramingElements.create_plate(
+        @entities,
+        wall.axes,
+        wall.horizontal_range.first,
+        wall.length,
+        wall.height - FramingElements::DEFAULT_PLATE_THICKNESS,
+        Metadata.framing_member_tag('top_plate', next_sequence(:plate))
+      )
+    end
+
+    def place_corner_posts
+      return [] if @walls.empty?
+
+      corners = corner_points
+      return [] if corners.empty?
+
+      height = @walls.map(&:height).max
+      width = FramingElements::DEFAULT_CORNER_POST_WIDTH
+      depth = FramingElements::DEFAULT_CORNER_POST_DEPTH
+
+      min_x, max_x = corners.map { |corner| corner.x }.minmax
+      min_y, max_y = corners.map { |corner| corner.y }.minmax
+
+      corners.map do |corner|
+        x_offset = corner_offset(corner.x, min_x, max_x, width)
+        y_offset = corner_offset(corner.y, min_y, max_y, depth)
+
+        origin = Geom::Point3d.new(corner.x + x_offset, corner.y + y_offset, corner.z)
+        axes = GeometryUtils::LocalAxes.new(
+          origin,
+          Geom::Vector3d.new(1, 0, 0),
+          Geom::Vector3d.new(0, 1, 0),
+          Geom::Vector3d.new(0, 0, 1)
+        )
+
+        FramingElements.create_corner_post(
+          @entities,
+          axes,
+          height,
+          Metadata.framing_member_tag('corner_post', next_sequence(:corner_post)),
+          width: width,
+          depth: depth
+        )
+      end
+    end
+
+    def corner_points
+      @corner_points ||= begin
+        points = @walls.flat_map do |wall|
+          start_point = wall.axes.origin
+          end_point = start_point.offset(wall.axes.xaxis, wall.length)
+          [start_point, end_point]
+        end
+
+        deduplicate_points(points)
+      end
+    end
+
+    def deduplicate_points(points)
+      unique = []
+
+      points.each do |point|
+        next if unique.any? { |existing| (existing.distance(point)) <= GeometryUtils::EPSILON }
+
+        unique << point
+      end
+
+      unique
+    end
+
+    def corner_offset(coordinate, min_value, max_value, size)
+      midpoint = (min_value + max_value) / 2.0
+      coordinate < midpoint ? size / 2.0 : -size / 2.0
     end
   end
 end

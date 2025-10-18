@@ -10,12 +10,24 @@ module SPKarkas
     DEFAULT_COLUMN_DEPTH = 150.mm
     DEFAULT_BEAM_WIDTH = 60.mm
     DEFAULT_BEAM_DEPTH = 180.mm
+    DEFAULT_PLATE_THICKNESS = DEFAULT_STUD_WIDTH
+    DEFAULT_PLATE_DEPTH = DEFAULT_STUD_DEPTH
+    DEFAULT_CORNER_POST_WIDTH = DEFAULT_STUD_DEPTH
+    DEFAULT_CORNER_POST_DEPTH = DEFAULT_STUD_DEPTH
 
     module_function
 
     def create_stud(entities, axes, length, offset_along, metadata = {})
       origin = axes.origin.offset(axes.xaxis, offset_along)
-      build_prismatic_member(entities, origin, axes, DEFAULT_STUD_WIDTH, DEFAULT_STUD_DEPTH, length, metadata.merge('type' => 'stud'))
+      build_prismatic_member(
+        entities,
+        origin,
+        axes,
+        DEFAULT_STUD_WIDTH,
+        DEFAULT_STUD_DEPTH,
+        length,
+        metadata.merge('type' => 'stud')
+      )
     end
 
     def create_header(entities, axes, start_offset, width, elevation, metadata = {})
@@ -128,6 +140,38 @@ module SPKarkas
         DEFAULT_BEAM_DEPTH,
         length,
         metadata.merge('type' => 'beam')
+      )
+    end
+
+    def create_plate(entities, axes, start_offset, length, elevation, metadata = {})
+      return nil if length <= GeometryUtils::EPSILON
+
+      origin = axes.origin
+      origin = origin.offset(axes.xaxis, start_offset)
+      origin = origin.offset(axes.zaxis, elevation + DEFAULT_PLATE_THICKNESS / 2.0)
+
+      orientation = GeometryUtils::LocalAxes.new(origin, axes.yaxis, axes.zaxis, axes.xaxis)
+
+      build_prismatic_member(
+        entities,
+        origin,
+        orientation,
+        DEFAULT_PLATE_DEPTH,
+        DEFAULT_PLATE_THICKNESS,
+        length,
+        metadata.merge('type' => 'plate')
+      )
+    end
+
+    def create_corner_post(entities, axes, height, metadata = {}, width: DEFAULT_CORNER_POST_WIDTH, depth: DEFAULT_CORNER_POST_DEPTH)
+      build_prismatic_member(
+        entities,
+        axes.origin,
+        axes,
+        width,
+        depth,
+        height,
+        metadata.merge('type' => 'corner_post')
       )
     end
 
